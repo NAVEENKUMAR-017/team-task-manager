@@ -37,7 +37,7 @@ const normalizeUsername = value => String(value || '').trim().toLowerCase();
 const normalizeEmail = value => String(value || '').trim().toLowerCase();
 const validUsername = username => /^[a-z0-9_.-]{3,50}$/.test(username);
 const validPassword = password => typeof password === 'string' && password.length >= 8;
-const publicUser = u => ({ id: u.id, username: u.username, name: u.name, email: u.email, role: u.role, isActive: Boolean(u.is_active), mustChangePassword: Boolean(u.must_change_password), emailVerified: Boolean(u.email_verified) });
+const publicUser = u => ({ id: u.id, username: u.username, name: u.name, email: u.email, role: u.role, avatarData: u.avatar_data || null, isActive: Boolean(u.is_active), mustChangePassword: Boolean(u.must_change_password), emailVerified: Boolean(u.email_verified) });
 const issueToken = u => jwt.sign({ id: u.id, username: u.username, name: u.name, role: u.role, mustChangePassword: Boolean(u.must_change_password) }, JWT_SECRET, { expiresIn: '7d' });
 
 async function init() {
@@ -45,7 +45,7 @@ async function init() {
     id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50) UNIQUE NULL, name VARCHAR(100) NOT NULL,
     email VARCHAR(160) UNIQUE NULL, password_hash VARCHAR(255) NULL, password TEXT NULL,
     role ENUM('admin','member') NOT NULL DEFAULT 'member', is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    must_change_password BOOLEAN NOT NULL DEFAULT TRUE, email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE, email_verified BOOLEAN NOT NULL DEFAULT FALSE, avatar_data MEDIUMTEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB`);
   await query(`CREATE TABLE IF NOT EXISTS otp_codes (
@@ -61,7 +61,7 @@ async function init() {
   const names = new Set(columns.map(c => c.COLUMN_NAME));
   const add = async (name, definition) => { if (!names.has(name)) await query(`ALTER TABLE users ADD COLUMN ${name} ${definition}`); };
   await add('username', 'VARCHAR(50) UNIQUE NULL AFTER id'); await add('password_hash', 'VARCHAR(255) NULL');
-  await add('is_active', 'BOOLEAN NOT NULL DEFAULT TRUE'); await add('must_change_password', 'BOOLEAN NOT NULL DEFAULT TRUE'); await add('email_verified', 'BOOLEAN NOT NULL DEFAULT FALSE');
+  await add('is_active', 'BOOLEAN NOT NULL DEFAULT TRUE'); await add('must_change_password', 'BOOLEAN NOT NULL DEFAULT TRUE'); await add('email_verified', 'BOOLEAN NOT NULL DEFAULT FALSE'); await add('avatar_data', 'MEDIUMTEXT NULL');
   await query('ALTER TABLE users MODIFY email VARCHAR(160) NULL');
   if (names.has('password')) {
     await query('UPDATE users SET password_hash=password WHERE password_hash IS NULL AND password IS NOT NULL');
@@ -167,6 +167,12 @@ app.post('/api/auth/login-otp/verify', asyncRoute(async (req, res) => {
   const u = rows[0]; await consumeOtp(u.id, 'login', req.body.otp); res.json({ user: publicUser(u), token: issueToken(u), mustChangePassword: Boolean(u.must_change_password) });
 }));
 app.get('/api/me', auth, (req, res) => res.json({ user: publicUser(req.user) }));
+app.put('/api/me/avatar', auth, passwordChanged, asyncRoute(async (req, res) => {
+  const avatar = req.body.avatar;
+  if (typeof avatar !== 'string' || !/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(avatar) || Buffer.byteLength(avatar, 'utf8') > 1024 * 1024) return res.status(400).json({ error: 'Use a PNG, JPEG, WebP, or GIF image under 750 KB.' });
+  await query('UPDATE users SET avatar_data=? WHERE id=?', [avatar, req.user.id]);
+  const u = (await query('SELECT * FROM users WHERE id=?', [req.user.id]))[0]; res.json({ user: publicUser(u) });
+}));
 
 app.get('/api/admin/users', auth, ready, admin, asyncRoute(async (req, res) => res.json(await query('SELECT id,username,name,email,role,is_active,must_change_password,email_verified,created_at FROM users ORDER BY name'))));
 app.post('/api/admin/users', auth, ready, admin, asyncRoute(async (req, res) => {
