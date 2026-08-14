@@ -87,7 +87,7 @@ async function auth(req, res, next) {
   } catch { return res.status(401).json({ error: 'Invalid or expired token' }); }
 }
 function passwordChanged(req, res, next) { if (req.user.must_change_password) return res.status(403).json({ error: 'Change your temporary password before accessing the application', code: 'PASSWORD_CHANGE_REQUIRED' }); next(); }
-function ready(req, res, next) { passwordChanged(req, res, () => { if (!req.user.email_verified) return res.status(403).json({ error: 'Verify an email address before accessing the application', code: 'EMAIL_VERIFICATION_REQUIRED' }); next(); }); }
+function ready(req, res, next) { passwordChanged(req, res, () => { if (req.user.role === 'admin' && !req.user.email_verified) return res.status(403).json({ error: 'Verify an email address before accessing the application', code: 'EMAIL_VERIFICATION_REQUIRED' }); next(); }); }
 function admin(req, res, next) { if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' }); next(); }
 function randomOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
 async function sendEmail({ to, subject, text }) {
