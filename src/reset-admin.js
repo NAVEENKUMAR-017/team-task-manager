@@ -17,9 +17,9 @@ const poolConfig = databaseUrl || {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'taskmanager'
 };
-const connection = await mysql.createConnection({
+const connection = await mysql.createConnection(databaseUrl ? databaseUrl : {
   ...poolConfig,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });
 
 try {
