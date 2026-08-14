@@ -69,7 +69,7 @@ This is a Node.js server with a MySQL database, so GitHub Pages alone cannot hos
    NODE_ENV=production
    ```
 
-   Add the `SMTP_*` values too if email verification, password reset, and OTP login should work in the deployed app.
+   For Railway Trial, Free, or Hobby deployments, add `RESEND_API_KEY` and `EMAIL_FROM` (described below) for email verification, password reset, and OTP login. Railway blocks outbound SMTP on those plans.
 5. Deploy the web service. Railway detects `railway.json` and runs `npm start`.
 6. Open the service's **Settings → Networking → Generate Domain**. Send that HTTPS URL to your friend. Create a separate member account in **Admin Console** rather than sharing your administrator password.
 
@@ -78,6 +78,17 @@ After changing code on the connected GitHub branch, Railway redeploys automatica
 ## Gmail OTP setup
 
 The app sends OTPs through Gmail SMTP. This is required for email verification, forgotten-password resets, and optional login with OTP.
+
+## Resend email setup (recommended for Railway)
+
+Railway Trial, Free, and Hobby plans block SMTP connections. This app uses the [Resend HTTPS API](https://resend.com/docs/api-reference/emails/send-email) automatically when these variables are set:
+
+```env
+RESEND_API_KEY=re_your_api_key
+EMAIL_FROM=Team Task Manager <onboarding@your-verified-domain.com>
+```
+
+Create a Resend account, add and verify a domain you own, and create a **Sending access** API key. `EMAIL_FROM` must use that verified domain. For testing only, `onboarding@resend.dev` can send solely to the email address associated with the Resend account.
 
 1. Sign in to the Gmail account that will send OTPs.
 2. Open [Google Account Security](https://myaccount.google.com/security) and enable **2-Step Verification**.
@@ -126,6 +137,7 @@ After starting the server, sign in with the administrator username and temporary
 | `ADMIN_USERNAME`, `ADMIN_NAME`, `ADMIN_TEMP_PASSWORD` | One-time bootstrap administrator values for an empty database. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | SMTP server connection (Gmail: `smtp.gmail.com`, `587`, `false`). |
 | `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Gmail address, Gmail App Password, and sender address. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Resend HTTPS email API key and a sender using a verified domain. Preferred on Railway. |
 | `PORT` | HTTP port, default `3000`. |
 
 `.env` is intentionally ignored by Git. Do not put passwords, SMTP App Passwords, or JWT secrets in code or source control.

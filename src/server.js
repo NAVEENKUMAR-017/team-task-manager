@@ -30,6 +30,7 @@ const pool = mysql.createPool(databaseUrl ? databaseUrl : {
 });
 const smtpReady = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 const mailer = smtpReady ? nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: process.env.SMTP_SECURE === 'true', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } }) : null;
+const resendReady = Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 
 async function query(sql, params = []) { const [rows] = await pool.execute(sql, params); return rows; }
 const normalizeUsername = value => String(value || '').trim().toLowerCase();
@@ -89,14 +90,30 @@ function passwordChanged(req, res, next) { if (req.user.must_change_password) re
 function ready(req, res, next) { passwordChanged(req, res, () => { if (!req.user.email_verified) return res.status(403).json({ error: 'Verify an email address before accessing the application', code: 'EMAIL_VERIFICATION_REQUIRED' }); next(); }); }
 function admin(req, res, next) { if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' }); next(); }
 function randomOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
+async function sendEmail({ to, subject, text }) {
+  if (resendReady) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'User-Agent': 'team-task-manager/1.0' },
+      body: JSON.stringify({ from: process.env.EMAIL_FROM, to, subject, text })
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.message || body.error || `Resend email request failed (${response.status})`);
+    }
+    return;
+  }
+  if (mailer) return mailer.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to, subject, text });
+  throw new Error('Email delivery is not configured. Set RESEND_API_KEY and EMAIL_FROM.');
+}
 async function sendOtp(user, purpose, email) {
-  if (!mailer) throw new Error('Email delivery is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASS.');
+  if (!resendReady && !mailer) throw new Error('Email delivery is not configured. Set RESEND_API_KEY and EMAIL_FROM.');
   const recent = await query(`SELECT COUNT(*) AS count FROM otp_codes WHERE user_id=? AND purpose=? AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)`, [user.id, purpose]);
   if (Number(recent[0].count) >= 3) { const error = new Error('Too many OTP requests. Try again later.'); error.status = 429; throw error; }
   const otp = randomOtp();
+  await sendEmail({ to: email, subject: 'Team Task Manager verification code', text: `Your ${purpose.replace('_', ' ')} code is ${otp}. It expires in 5 minutes.` });
   await query('UPDATE otp_codes SET consumed_at=NOW() WHERE user_id=? AND purpose=? AND consumed_at IS NULL', [user.id, purpose]);
   await query('INSERT INTO otp_codes(user_id,purpose,email,otp_hash,expires_at) VALUES(?,?,?,?,DATE_ADD(NOW(), INTERVAL 5 MINUTE))', [user.id, purpose, email, await bcrypt.hash(otp, 12)]);
-  await mailer.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: email, subject: 'Team Task Manager verification code', text: `Your ${purpose.replace('_', ' ')} code is ${otp}. It expires in 5 minutes.` });
 }
 async function consumeOtp(userId, purpose, code, email = null) {
   const rows = await query(`SELECT * FROM otp_codes WHERE user_id=? AND purpose=? AND consumed_at IS NULL AND expires_at > NOW() ${email ? 'AND email=?' : ''} ORDER BY id DESC LIMIT 1`, email ? [userId, purpose, email] : [userId, purpose]);
