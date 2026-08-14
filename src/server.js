@@ -167,6 +167,13 @@ app.post('/api/auth/login-otp/verify', asyncRoute(async (req, res) => {
   const u = rows[0]; await consumeOtp(u.id, 'login', req.body.otp); res.json({ user: publicUser(u), token: issueToken(u), mustChangePassword: Boolean(u.must_change_password) });
 }));
 app.get('/api/me', auth, (req, res) => res.json({ user: publicUser(req.user) }));
+app.put('/api/me/email', auth, passwordChanged, asyncRoute(async (req, res) => {
+  if (req.user.role !== 'member') return res.status(403).json({ error: 'Administrators must verify their email address with an OTP.' });
+  const email = normalizeEmail(req.body.email); if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'A valid email is required' });
+  const exists = await query('SELECT id FROM users WHERE email=? AND id<>?', [email, req.user.id]); if (exists.length) return res.status(409).json({ error: 'Email is already in use' });
+  await query('UPDATE users SET email=?, email_verified=FALSE WHERE id=?', [email, req.user.id]);
+  const u = (await query('SELECT * FROM users WHERE id=?', [req.user.id]))[0]; res.json({ user: publicUser(u) });
+}));
 app.put('/api/me/avatar', auth, passwordChanged, asyncRoute(async (req, res) => {
   const avatar = req.body.avatar;
   if (typeof avatar !== 'string' || !/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(avatar) || Buffer.byteLength(avatar, 'utf8') > 1024 * 1024) return res.status(400).json({ error: 'Use a PNG, JPEG, WebP, or GIF image under 750 KB.' });
