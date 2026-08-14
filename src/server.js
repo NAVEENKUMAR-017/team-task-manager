@@ -171,4 +171,4 @@ app.delete('/api/tasks/:id', auth, ready, admin, asyncRoute(async (req, res) => 
 app.get('/api/dashboard', auth, ready, asyncRoute(async (req, res) => res.json((await query(`SELECT COUNT(*) AS total, SUM(status='todo') AS todo, SUM(status='in_progress') AS in_progress, SUM(status='done') AS done, SUM(due_date < CURDATE() AND status <> 'done') AS overdue FROM tasks`))[0])));
 app.get('/{*splat}', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 const PORT = Number(process.env.PORT || 3000);
-init().then(() => app.listen(PORT, () => console.log(`Task Manager running at http://localhost:${PORT}`))).catch(e => { console.error(e); process.exit(1); });
+init().then(() => app.listen(PORT, '0.0.0.0', () => console.log(`Task Manager running on port ${PORT}`))).catch(e => { console.error(e); process.exit(1); });
