@@ -9,7 +9,8 @@ if (!/^[a-z0-9_.-]{3,50}$/.test(username) || password.length < 8) {
   throw new Error('Set ADMIN_USERNAME and an 8+ character ADMIN_TEMP_PASSWORD in .env before running this command.');
 }
 
-const poolConfig = process.env.DATABASE_URL ? { uri: process.env.DATABASE_URL } : {
+const databaseUrl = process.env.DATABASE_URL || process.env.MYSQL_URL;
+const poolConfig = databaseUrl || {
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',

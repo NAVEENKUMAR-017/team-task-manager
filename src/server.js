@@ -16,7 +16,8 @@ if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET must be set in .env');
 const JWT_SECRET = process.env.JWT_SECRET;
 const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
-const poolConfig = process.env.DATABASE_URL ? { uri: process.env.DATABASE_URL } : {
+const databaseUrl = process.env.DATABASE_URL || process.env.MYSQL_URL;
+const poolConfig = databaseUrl || {
   host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root', password: process.env.DB_PASSWORD || '', database: process.env.DB_NAME || 'taskmanager'
 };
@@ -101,6 +102,8 @@ async function consumeOtp(userId, purpose, code, email = null) {
   await query('UPDATE otp_codes SET consumed_at=NOW() WHERE id=?', [otp.id]); return otp;
 }
 const asyncRoute = handler => (req, res) => Promise.resolve(handler(req, res)).catch(e => { console.error(e); res.status(e.status || 500).json({ error: e.message || 'Server error' }); });
+
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const username = normalizeUsername(req.body.username); const rows = await query('SELECT * FROM users WHERE username=?', [username]);

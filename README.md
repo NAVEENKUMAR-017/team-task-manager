@@ -52,6 +52,29 @@ Email, password-reset, and login OTPs are six digits, expire after five minutes,
 
 6. Open `http://localhost:3000`, sign in using `ADMIN_USERNAME` and `ADMIN_TEMP_PASSWORD`, choose a permanent password, and verify an email. Use **Admin Console** to create the remaining accounts.
 
+## Deploy and share
+
+This is a Node.js server with a MySQL database, so GitHub Pages alone cannot host the working app. Railway can host both pieces and provides a shareable HTTPS URL.
+
+1. Push this repository to GitHub.
+2. In [Railway](https://railway.app), create a new project from this GitHub repository.
+3. Add a **MySQL** service to the Railway project.
+4. In the web-service variables, set `DATABASE_URL` to the MySQL service's `MYSQL_URL` reference. Then add:
+
+   ```env
+   JWT_SECRET=a-long-random-secret
+   ADMIN_USERNAME=admin
+   ADMIN_NAME=Your Name
+   ADMIN_TEMP_PASSWORD=choose-a-strong-temporary-password
+   NODE_ENV=production
+   ```
+
+   Add the `SMTP_*` values too if email verification, password reset, and OTP login should work in the deployed app.
+5. Deploy the web service. Railway detects `railway.json` and runs `npm start`.
+6. Open the service's **Settings → Networking → Generate Domain**. Send that HTTPS URL to your friend. Create a separate member account in **Admin Console** rather than sharing your administrator password.
+
+After changing code on the connected GitHub branch, Railway redeploys automatically. The `/api/health` URL can be used to confirm that the server is online.
+
 ## Gmail OTP setup
 
 The app sends OTPs through Gmail SMTP. This is required for email verification, forgotten-password resets, and optional login with OTP.
